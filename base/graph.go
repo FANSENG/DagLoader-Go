@@ -1,4 +1,4 @@
-package main
+package base
 
 import (
 	"context"
@@ -84,10 +84,17 @@ func (g *TaskGraph) stop() {
 	})
 }
 
-func (g *TaskGraph) doneNode() {
+func (g *TaskGraph) doneNode(node *TaskNode) {
 	g.doneCount.Add(1)
 	if g.doneCount.Load() == g.nodeCount {
 		g.stop()
+	}
+
+	for _, childId := range node.Children {
+		g.reduceInDepth(childId)
+		if g.NodeMap[childId].inDepth.Load() == 0 {
+			g.readyChanel <- childId
+		}
 	}
 }
 
@@ -143,16 +150,13 @@ func (g *TaskGraph) Run(ctx context.Context) error {
 		}
 		go func() {
 			node := g.NodeMap[nodeId]
-			node.Once.Do(func() {
+			success := node.Once.DoWithTimeout(func() {
 				g.NodeError[nodeId] = node.RunFunc(ctx)
-				g.doneNode()
-			})
-			for _, childId := range node.Children {
-				g.reduceInDepth(childId)
-				if g.NodeMap[childId].inDepth.Load() == 0 {
-					g.readyChanel <- childId
-				}
+			}, node.Timeout)
+			if !success {
+				logrus.Errorf("node %d timeout", nodeId)
 			}
+			g.doneNode(node)
 		}()
 	}
 	return nil

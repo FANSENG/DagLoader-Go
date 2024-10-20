@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"time"
+
+	"fs1n/dag/base"
 )
 
 func main() {
-	graph := NewTaskGraph()
+	graph := base.NewTaskGraph()
 	nodeId2 := graph.AddNode(func(ctx context.Context) error {
-		println("2")
+		time.Sleep(time.Second * 3)
 		return nil
 	}, time.Second)
 	nodeId3 := graph.AddNode(func(ctx context.Context) error {
@@ -27,8 +29,5 @@ func main() {
 	graph.AddEdge(nodeId5, nodeId2)
 	graph.AddEdge(nodeId2, nodeId3)
 	graph.AddEdge(nodeId3, nodeId4)
-	graph.AddEdge(nodeId4, nodeId5)
 	_ = graph.Run(context.Background())
 }
-
-// go run main.go graph.go node.go
